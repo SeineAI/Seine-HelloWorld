@@ -6,6 +6,7 @@ def hello_world():
     sleep_time = random.randint(1, 5)
     time.sleep(sleep_time)
     print(f"Slept for {sleep_time} seconds")
+    print(f"testing seine")
 
 # Call the function
 hello_world()
