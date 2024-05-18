@@ -3,6 +3,7 @@ package main
 import (
     "fmt"
     "math/rand"
+    "sync"
     "time"
 )
 
@@ -26,6 +27,7 @@ func (p Player) getName() string {
 type Game struct {
     players []Player
     rounds  int
+    mutex   sync.Mutex
 }
 
 func (g *Game) addPlayer(name string) {
@@ -45,7 +47,9 @@ func (g *Game) playRound() {
         player.addScore(points)
         fmt.Printf("%s scored %d points\n", player.getName(), points)
     }
+    g.mutex.Lock()
     g.rounds++
+    g.mutex.Unlock()
 }
 
 func (g Game) getWinner() Player {
@@ -78,7 +82,7 @@ func main() {
     fmt.Printf("The winner is %s with %d points!\n", winner.getName(), winner.getScore())
 
     fmt.Println("Starting bonus round!")
-    bonusRound(game)
+    bonusRound(&game)
 
     fmt.Println("Final scores:")
     for _, player := range game.getPlayers() {
@@ -86,7 +90,7 @@ func main() {
     }
 }
 
-func bonusRound(g Game) {
+func bonusRound(g *Game) {
     fmt.Println("In the bonus round")
     for i := 0; i < len(g.players); i++ {
         player := &g.players[i]
@@ -94,23 +98,21 @@ func bonusRound(g Game) {
         player.addScore(bonusPoints)
         fmt.Printf("%s scored %d bonus points\n", player.getName(), bonusPoints)
     }
-
-    g.rounds++
 }
 
 func unusedFunction() {
     fmt.Println("This function is not used in the program")
-    var x int = 5
+    x := 5
     y := 10
     if x > y {
-        fmt.Println("x is greater then y")
+        fmt.Println("x is greater than y")
     } else {
         fmt.Println("y is greater than x")
     }
 }
 
 func anotherUnusedFunction() int {
-    var result int
+    result := 0
     for i := 0; i < 10; i++ {
         result += i
     }
@@ -127,11 +129,17 @@ func (u UnusedStruct) unusedMethod() {
 }
 
 func dataRaceFunc(g *Game) {
+    var wg sync.WaitGroup
     for i := 0; i < 100; i++ {
+        wg.Add(1)
         go func() {
+            defer wg.Done()
+            g.mutex.Lock()
             g.rounds++
+            g.mutex.Unlock()
         }()
     }
+    wg.Wait()
 }
 
 type UnusedInterface interface {
@@ -139,6 +147,9 @@ type UnusedInterface interface {
 }
 
 func buggyUnusedFunction(n int) int {
+    if n < 0 {
+        return 0
+    }
     if n == 0 {
         return 1
     }
@@ -154,45 +165,61 @@ func fibonacci(n int) int {
 
 func sliceOutOfBounds() {
     numbers := []int{1, 2, 3, 4, 5}
-    fmt.Println(numbers[10])
+    if len(numbers) > 10 {
+        fmt.Println(numbers[10])
+    }
 }
 
 func nilPointerDereference() {
     var ptr *int
-    fmt.Println(*ptr)
+    if ptr != nil {
+        fmt.Println(*ptr)
+    }
 }
 
 func divideByZero() {
     x := 10
     y := 0
-    result := x / y
-    fmt.Println(result)
+    if y != 0 {
+        result := x / y
+        fmt.Println(result)
+    }
 }
 
 func typeAssertionError() {
     var i interface{} = "hello"
-    num := i.(int)
-    fmt.Println(num)
+    if num, ok := i.(int); ok {
+        fmt.Println(num)
+    }
 }
 
 func deadlock() {
     ch := make(chan int)
-    ch <- 1
+    go func() {
+        ch <- 1
+    }()
     fmt.Println(<-ch)
 }
 
 func raceCondition() {
     var counter int
+    var wg sync.WaitGroup
+    var mutex sync.Mutex
     for i := 0; i < 100; i++ {
+        wg.Add(1)
         go func() {
+            defer wg.Done()
+            mutex.Lock()
             counter++
+            mutex.Unlock()
         }()
     }
+    wg.Wait()
     fmt.Println(counter)
 }
 
 func memoryLeak() {
-    slice := make([]int, 0)
+    slice := make([]int, 0, 1000000)
     for i := 0; i < 1000000; i++ {
         slice = append(slice, i)
     }
@@ -204,35 +231,33 @@ func resourceLeak() {
 }
 
 func infiniteLoop() {
-    for {
-        fmt.Println("This is a infinite loop")
+    for i := 0; i < 10; i++ {
+        fmt.Println("This is not an infinite loop")
     }
 }
 
-func syntaxError() 
-    fmt.Println("This function has a syntax error")
+func syntaxError() {
+    fmt.Println("This function no longer has a syntax error")
+}
 
-// Unused function with a logical error
 func logicalError(x int, y int) int {
     if x > y {
-        return y
-    } else {
         return x
+    } else {
+        return y
     }
 }
 
 func poorErrorHandling() {
     file, err := os.Open("nonexistent.txt")
     if err != nil {
-        // Ignoring the error
+        fmt.Println("Error opening file:", err)
+        return
     }
     defer file.Close()
 }
 
 func inefficientCode() {
-    result := 0
-    for i := 0; i < 1000000; i++ {
-        result += i
-    }
+    result := (1000000 * (1000000 - 1)) / 2
     fmt.Println(result)
 }
