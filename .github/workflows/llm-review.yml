@@ -16,6 +16,11 @@ on:
     types: [ created ]
   pull_request_target:
     types: [ opened, synchronize, reopened, edited ]
+  workflow_dispatch:
+    inputs:
+      redirect_event_id:
+        description: 'The event id that invokes this trigger'
+        required: false
 
 concurrency:
   group:
@@ -25,9 +30,8 @@ concurrency:
 
 jobs:
   seinesailor:
-    # the github.event.pull_request.head.repo.fork is a boolean, it ensures that the pull_request_target event only
-    # runs from a forked repo
     if: |
+      github.event_name == 'workflow_dispatch' ||
       github.event_name == 'pull_request_target' ||
       (contains(github.event.comment.body, '@SeineSailor') && (
         github.event_name == 'issue_comment' || 
@@ -41,9 +45,21 @@ jobs:
       IBM_CLOUD_API_KEY: ${{ secrets.IBM_CLOUD_API_KEY }}
       WATSONX_PROJECT_ID: ${{ secrets.WATSONX_PROJECT_ID }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      REDIRECT_EVENT_ID: ${{ github.event.inputs.redirect_event_id }}
     steps:
+      - name: Check if redirected
+        id: check_redirect
+        run: |
+          if [ "${{ github.event.inputs.redirect_event_id }}" != "" ]; then
+            echo "This is a redirected run"
+            echo "is_redirected=true" >> $GITHUB_ENV
+          else
+            echo "This is the initial run"
+            echo "is_redirected=false" >> $GITHUB_ENV
+          fi
       - name: Check for mention outside of quotes in comments
         id: check_mention
+        if: env.is_redirected == 'false'
         env:
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
@@ -69,7 +85,26 @@ jobs:
             fi
           done <<< "$COMMENT_BODY"
           echo "mention_outside_quotes=$mention_outside_quotes" >> $GITHUB_ENV
-
+      - name: Check for empty IBM_CLOUD_API_KEY
+        id: check_secret
+        if: env.is_redirected == 'false'
+        run: |
+          if [[ "${{ secrets.IBM_CLOUD_API_KEY }}" == "" 
+          && "${{ secrets.OPENAI_API_KEY }}" == "" 
+          && "${{ github.event_name }}" == "pull_request_review_comment" ]]; then
+            echo "IBM_CLOUD_API_KEY is empty, assuming triggered by a forked repo"
+            echo "needs_redirect=true" >> $GITHUB_ENV
+          else
+            echo "needs_redirect=false" >> $GITHUB_ENV
+          fi
+      - name: Trigger Self Workflow in the base repo
+        if: env.is_redirected == 'false' || env.needs_redirect == 'true'
+        run: |
+          curl -X POST -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/${{ github.workflow }}.yml/dispatches \
+            -d '{"ref": "${{ github.ref }}", "inputs": {"redirect_event_id": "${{ github.event.id }}"}}'
+        shell: bash
 #      - name: Dump GitHub context for debug
 #        env:
 #          GITHUB_CONTEXT: ${{ toJson(github) }}
@@ -78,6 +113,7 @@ jobs:
       - name: Dump event payload for debug
         run: cat $GITHUB_EVENT_PATH
       - name: Run SeineSailor
+        if: env.needs_redirect == 'false'
         uses: SeineAI/SeineSailor@dev-action-only-do-not-merge-or-delete
         with:
           debug: true
