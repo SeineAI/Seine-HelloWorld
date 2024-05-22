@@ -101,10 +101,10 @@ jobs:
         if: env.is_redirected == 'false' || env.needs_redirect == 'true'
         run: |
           workflow_filename=$(echo $GITHUB_WORKFLOW_REF | awk -F'@' '{print $1}' | awk -F'/' '{print $NF}')
-          echo "extracted workflow_filename: ${{ $workflow_filename }}"
+          echo "extracted workflow_filename: $workflow_filename"
           curl -X POST -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/${{ $workflow_filename }}/dispatches \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflow_filename/dispatches \
             -d '{"ref": "${{ github.ref }}", "inputs": {"redirect_event_id": "${{ github.event.id }}"}}'
         shell: bash
 #      - name: Dump GitHub context for debug
