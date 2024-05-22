@@ -105,13 +105,13 @@ jobs:
           curl -L -X POST -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflow_filename/dispatches \
-            -d '{"ref": "${{ github.ref }}", "inputs": {"redirect_event_id": "${{ github.event.id }}"}}'
+            -d '{"ref": "main", "inputs": {"redirect_event_id": "${{ github.event.id }}"}}'
         shell: bash
-#      - name: Dump GitHub context for debug
-#        env:
-#          GITHUB_CONTEXT: ${{ toJson(github) }}
-#        run: |
-#          echo "$GITHUB_CONTEXT"
+      - name: Dump GitHub context for debug
+        env:
+          EVENT_CONTEXT: ${{ toJson(github.event) }}
+        run: |
+          echo "EVENT_CONTEXT"
       - name: Dump event payload for debug
         run: cat $GITHUB_EVENT_PATH
       - name: Run SeineSailor
