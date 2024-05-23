@@ -18,8 +18,11 @@ on:
     types: [ opened, synchronize, reopened, edited ]
   workflow_dispatch:
     inputs:
-      redirect_event_id:
-        description: 'The event id that invokes this trigger'
+      payload:
+        description: 'The payload of the event that invokes this trigger'
+        required: false
+      event_name:
+        description: 'The name of the event that invokes this trigger'
         required: false
 
 concurrency:
@@ -45,12 +48,13 @@ jobs:
       IBM_CLOUD_API_KEY: ${{ secrets.IBM_CLOUD_API_KEY }}
       WATSONX_PROJECT_ID: ${{ secrets.WATSONX_PROJECT_ID }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      REDIRECT_EVENT_ID: ${{ github.event.inputs.redirect_event_id }}
+      REDIRECT_EVENT_NAME: ${{ github.event.inputs.event_name }}
+      REDIRECT_EVENT_PAYLOAD: ${{ github.event.inputs.payload }}
     steps:
       - name: Check if redirected
         id: check_redirect
         run: |
-          if [ "${{ github.event.inputs.redirect_event_id }}" != "" ]; then
+          if [ "${{ github.event.inputs.event_name }}" != "" ]; then
             echo "This is a redirected run"
             echo "is_redirected=true" >> $GITHUB_ENV
           else
@@ -85,33 +89,33 @@ jobs:
             fi
           done <<< "$COMMENT_BODY"
           echo "mention_outside_quotes=$mention_outside_quotes" >> $GITHUB_ENV
-      - name: Check for empty IBM_CLOUD_API_KEY
+      - name: Check for empty API KEYs
         id: check_secret
         if: env.is_redirected == 'false'
         run: |
           if [[ "${{ secrets.IBM_CLOUD_API_KEY }}" == "" 
           && "${{ secrets.OPENAI_API_KEY }}" == "" 
           && "${{ github.event_name }}" == "pull_request_review_comment" ]]; then
-            echo "IBM_CLOUD_API_KEY is empty, assuming triggered by a forked repo"
+            echo "Both IBM_CLOUD_API_KEY and OPENAI_API_KEY are empty, assuming triggered by a forked repo"
             echo "needs_redirect=true" >> $GITHUB_ENV
           else
             echo "needs_redirect=false" >> $GITHUB_ENV
           fi
       - name: Trigger Self Workflow in the base repo
-        if: env.is_redirected == 'false' || env.needs_redirect == 'true'
+        if: env.needs_redirect == 'true'
         run: |
           workflow_filename=$(echo $GITHUB_WORKFLOW_REF | awk -F'@' '{print $1}' | awk -F'/' '{print $NF}')
           echo "extracted workflow_filename: $workflow_filename"
           curl -L -X POST -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflow_filename/dispatches \
-            -d '{"ref": "main", "inputs": {"redirect_event_id": "${{ github.event.id }}"}}'
+            -d '{"ref": "main", "inputs": {"payload": "${{ toJson(github.event) }}", "event_name": "${{ github.event_name }}"}}'
         shell: bash
-      - name: Dump GitHub context for debug
-        env:
-          EVENT_CONTEXT: ${{ toJson(github) }}
-        run: |
-          echo "EVENT_CONTEXT"
+#      - name: Dump GitHub context for debug
+#        env:
+#          EVENT_CONTEXT: ${{ toJson(github) }}
+#        run: |
+#          echo "EVENT_CONTEXT"
       - name: Dump event payload for debug
         run: cat $GITHUB_EVENT_PATH
       - name: Run SeineSailor
