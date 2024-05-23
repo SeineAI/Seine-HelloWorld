@@ -115,7 +115,7 @@ jobs:
       - name: Dump event payload for debug
         run: cat $GITHUB_EVENT_PATH
       - name: Run SeineSailor
-        if: env.needs_redirect == 'false'
+        if: env.needs_redirect != 'true'
         uses: SeineAI/SeineSailor@dev-action-only-do-not-merge-or-delete
         with:
           debug: true
