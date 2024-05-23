@@ -109,7 +109,7 @@ jobs:
         shell: bash
       - name: Dump GitHub context for debug
         env:
-          EVENT_CONTEXT: ${{ toJson(github.event) }}
+          EVENT_CONTEXT: ${{ toJson(github) }}
         run: |
           echo "EVENT_CONTEXT"
       - name: Dump event payload for debug
